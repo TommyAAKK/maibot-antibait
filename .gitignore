@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 插件运行时数据（不随仓库分发）
+data/
+config.toml
+tics.json
+tics.draft.json
+monitor.jsonl
+monitor.jsonl.*
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 本地演示产物
+demo-data/
