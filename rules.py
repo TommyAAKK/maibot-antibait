@@ -179,6 +179,7 @@ class Verdict:
     hard: int = 0
     hits: list = dc_field(default_factory=list)
     blocked: bool = False
+    keep_persona: bool = True   # 打回理由里是否保留「颜文字/语气词照用」那一段
 
     def labels(self) -> list:
         hard = [h.label for h in self.hits if h.hard]
@@ -186,6 +187,18 @@ class Verdict:
         return hard + soft
 
     def reason_for(self, attempt: int) -> str:
+        # 长度闸门的措辞是整套方案的核心，不是装饰：
+        #   只说「短一点」        → 像真人分只涨 0.33
+        #   「只回一句、别补第二句」→ 涨 1.68，但把活泼也砍了（颜文字只剩 42%）
+        #   ＋「别变正经，颜文字照用」→ 保住 72% 颜文字、81% 语气词
+        if any(h.code == "length_gate" for h in self.hits):
+            base = ("上一版太长了，像在写一个完整的回答。群里真人一般就一句。\n"
+                    "这一版请只回一句话，15 到 20 字左右，不要补充第二句，"
+                    "不要解释，不要收尾客套。")
+            if getattr(self, "keep_persona", True):
+                base += ("\n但不要为此变得正经：你平时用的颜文字、句尾语气词（呀/嘛/呗/啦）、"
+                         "ww 和吐槽的口吻都照常用，这些是你的说话方式，不是多余内容。")
+            return base
         names = self.labels()[:3]
         joined = "、".join(names) if names else "八股特征"
         if attempt <= 1:
@@ -215,6 +228,16 @@ class RuleConfig:
     long_text_threshold: int = 200                      # 超过这个字数算「产出物」（榜单/教程/总结），结构类规则不适用
     extra_hard: list = dc_field(default_factory=list)   # list[str] 正则
     tics: list = dc_field(default_factory=list)         # list[(pattern, severity, note)]
+    # ── 长度闸门 ──
+    # 群聊里真人发言中位只有 9 字，模型默认写出 30-40 字的完整回答。
+    # 「说完了还要再补一句把话说圆」是 AI 味的主要来源，它不是词汇问题，
+    # 关键词规则抓不到，只能按长度/句数兜。
+    length_gate: bool = False
+    length_gate_max: int = 35
+    length_gate_max_sents: int = 2
+    length_gate_skip_long_text: bool = True
+    length_gate_hard: bool = True
+    length_gate_keep_persona: bool = True
 
 
 # ─────────────────────────────── 打分 ───────────────────────────────
@@ -339,6 +362,27 @@ def scan(raw: str, cfg: RuleConfig | None = None) -> Verdict:
             _add(hits, "tic_hard" if hard else "tic_soft",
                  "口癖（%s）" % (note or pat), 100.0 if hard else 1.0, mm.group(0), hard=hard)
 
+    # ── B+ 档：长度闸门（说完了还要再补一句 → AI 味本体）──
+    # 用遮蔽后的可见字数：引号/代码/URL 是别人的话，已被挖掉，不算自己的长度。
+    if cfg.length_gate:
+        gate_len = len(re.sub(r"\s+", "", text))
+        masked_chars = sum(len(s) for k, s in m.spans if k in ("quote", "code", "url"))
+        own_ratio = 1.0 if not raw else 1.0 - min(1.0, masked_chars / max(1, len(raw)))
+        skip = (cfg.length_gate_skip_long_text and long_text) or own_ratio < 0.5
+        if not skip:
+            n_sents = len([s for s in re.split(r"[。！？!?\n]+", text) if s.strip()])
+            too_long = gate_len > cfg.length_gate_max
+            too_many = cfg.length_gate_max_sents > 0 and n_sents > cfg.length_gate_max_sents
+            if too_long or too_many:
+                why = []
+                if too_long:
+                    why.append("%d 字" % gate_len)
+                if too_many:
+                    why.append("%d 句" % n_sents)
+                _add(hits, "length_gate", "过长（像在写完整回答）",
+                     100.0 if cfg.length_gate_hard else 1.0,
+                     "，".join(why), hard=cfg.length_gate_hard)
+
     # ── 汇总 ──
     hard_n = sum(1 for h in hits if h.hard)
     word_s = min(sum(h.weight for h in hits if h.code in WORD_CODES), cfg.word_cap)
@@ -357,6 +401,7 @@ def scan(raw: str, cfg: RuleConfig | None = None) -> Verdict:
         hard=hard_n,
         hits=hits,
         blocked=(hard_n > 0 or score >= cfg.soft_threshold),
+        keep_persona=bool(getattr(cfg, "length_gate_keep_persona", True)),
     )
 
 

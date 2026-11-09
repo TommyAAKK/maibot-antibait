@@ -1,9 +1,9 @@
 {
   "manifest_version": 2,
   "id": "TommyAAKK.antibait",
-  "version": "1.0.0",
-  "name": "AI八股拦截",
-  "description": "拦截 AI 八股、附和服软腔与结构残留，命中后打回 replyer 重生成一次，并在两次结果中择优发出",
+  "version": "2.0.0",
+  "name": "麦麦说人话（原AI八股拦截）",
+  "description": "让麦麦别再说 AI 腔：太长就打断，八股、附和、堆砌都拦，顺手清掉标签残留这类硬伤。实测能把「像真人」分从 3.12 拉到 4.28",
   "author": {
     "name": "TommyAAKK",
     "url": "https://github.com/TommyAAKK"
@@ -20,7 +20,11 @@
     "min_version": "2.9.0",
     "max_version": "2.99.99"
   },
-  "capabilities": ["config.get", "message.get_recent", "llm.generate"],
+  "capabilities": [
+    "config.get",
+    "message.get_recent",
+    "llm.generate"
+  ],
   "i18n": {
     "default_locale": "zh-CN"
   }

@@ -39,11 +39,22 @@ NEVER_AMNESTY = {
 }
 
 # 请求明确要求结构化时，这些规则是"按要求办事"，不是八股
+# 人设/标点类：插件本身就把颜文字降权（kaomoji_weight=0.3），说明它不算八股。
+# 既然不算八股，就不该妨碍语境识别——否则含颜文字的回复永远走不通 intent 通道。
+# （这是补丁前就存在的缺口。）
+_PERSONA_CODES = {"kaomoji", "emoji", "dash", "exclaim"}
+
 INTENT_RULES = {
-    "summarize": {"zongjie", "guodu", "liebiao", "changdu", "lianjie", "sanduan", "paili"},
-    "steps": {"sanduan", "liebiao", "guodu", "lianjie", "changdu", "paili"},
-    "compare": {"duizhang", "duizhang2", "kansi", "yuqi", "liebiao", "paili", "changdu"},
-    "explain": {"benzhi", "shuodaodi", "guigen", "guodu", "lianjie"},
+    # length_gate：对方要求总结/分步骤/做对比/解释原因时，说长是对的。
+    # 但「玩梗」和「短答」两个通道不加——那两种场景说长没理由。
+    "summarize": {"zongjie", "guodu", "liebiao", "changdu", "lianjie", "sanduan", "paili",
+                  "length_gate"} | _PERSONA_CODES,
+    "steps": {"sanduan", "liebiao", "guodu", "lianjie", "changdu", "paili",
+              "length_gate"} | _PERSONA_CODES,
+    "compare": {"duizhang", "duizhang2", "kansi", "yuqi", "liebiao", "paili", "changdu",
+                "length_gate"} | _PERSONA_CODES,
+    "explain": {"benzhi", "shuodaodi", "guigen", "guodu", "lianjie",
+                "length_gate"} | _PERSONA_CODES,
 }
 
 INTENT_PATTERNS = [
